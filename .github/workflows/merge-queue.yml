@@ -1,0 +1,35 @@
+name: Merge Queue Workflow
+
+on:
+  merge_group:
+    types: [checks_requested]
+
+jobs:
+  job1:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo testing
+        run: echo "testing"
+
+  job2:
+    needs: [job1]
+    strategy:
+      matrix:
+        platform: [ios, web]
+    uses: ./.github/workflows/matrix-workflow.yml
+    with:
+      platform: ${{ matrix.platform }}
+
+  aggregate:
+    runs-on: ubuntu-latest
+    needs: [job2]
+    steps:
+      - run: exit 0
+
+  job3:
+    needs: [job2, aggregate]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Final job
+        run: echo "All matrix jobs completed successfully"
