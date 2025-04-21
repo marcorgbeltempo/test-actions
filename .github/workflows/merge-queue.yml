@@ -129,7 +129,7 @@ jobs:
       - run: |
           echo "Result"
           echo "Build: ${{ needs.build.result }}"
-          echo "Build: ${{ needs.build.outputs }}"
+          echo "Build: ${{ fromJson(needs.build.outputs) }}"
           echo "Aggregate: ${{ needs.aggregate.result }}"
           
       - if: ${{ needs.build.result != 'skipped' && needs.aggregate.result != 'success' }}
