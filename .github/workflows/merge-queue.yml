@@ -7,24 +7,23 @@ on:
     types: [checks_requested]
 
 jobs:
-  job1:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Echo testing
-        run: echo "testing"
-
   build:
     if: ${{ github.event_name == 'merge_group' }}
-    needs: [job1]
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         platform: [ios, web]
-    uses: ./.github/workflows/matrix-workflow.yml
-    with:
-      platform: ${{ matrix.platform }}
+    steps:
+      - name: Run matrix job
+        run: |
+          echo "Running matrix for ${{ matrix.platform }}"
+          if [ "${{ matrix.platform }}" = "ios" ]; then
+            exit 1
+          fi
 
   aggregate:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'merge_group' }}
     needs: [build]
     steps:
       - run: exit 0
@@ -32,7 +31,7 @@ jobs:
   results:
     runs-on: ubuntu-latest
     needs: [build, aggregate]
-    if: ${{ github.event_name == 'merge_group' && !cancelled() }}
+    if: ${{ !cancelled() && github.event_name == 'merge_group' }}
     steps:
       - if: ${{ needs.build.result != 'skipped' && needs.aggregate.result != 'success' }}
         run: |
