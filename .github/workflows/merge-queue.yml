@@ -8,7 +8,7 @@ on:
 
 jobs:
   determine-e2e-platforms:
-    name: Determine E2E Test Platforms
+    name: E2E Determine Platforms
     runs-on: ubuntu-latest
     outputs:
       platforms: ${{ steps.check.outputs.platforms }}
@@ -90,6 +90,7 @@ jobs:
           fi
 
   build:
+    name: Build E2E Test
     runs-on: ubuntu-latest
     needs: [determine-e2e-platforms]
     if: ${{ needs.determine-e2e-platforms.outputs.platforms != '[]' }}
@@ -105,6 +106,7 @@ jobs:
           fi
 
   aggregate:
+    name: Aggregate E2E Results
     runs-on: ubuntu-latest
     needs: [determine-e2e-platforms, build]
     if: ${{ needs.determine-e2e-platforms.outputs.platforms != '[]' }}
@@ -112,6 +114,7 @@ jobs:
       - run: exit 0
 
   results:
+    name: E2E Results
     runs-on: ubuntu-latest
     needs: [determine-e2e-platforms, build, aggregate]
     if: ${{ !cancelled() && needs.determine-e2e-platforms.outputs.platforms != '[]' }}
