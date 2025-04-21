@@ -124,13 +124,18 @@ jobs:
     name: E2E Merge Group Results
     runs-on: ubuntu-latest
     needs: [determine-e2e-platforms, build, aggregate]
-    if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+    if: ${{ !cancelled() }}
     steps:
       - run: |
           echo "Result"
           echo "Build: ${{ needs.build.result }}"
           echo "Build: ${{ needs.build.outputs }}"
           echo "Aggregate: ${{ needs.aggregate.result }}"
+
+      - if: ${{ github.event_name != 'merge_group' && needs.determine-e2e-platforms.outputs.platforms != '[]' }}
+        run: |
+          echo "No e2e tests were ran"
+          exit 0
 
       - if: ${{ needs.build.result != 'skipped' && needs.aggregate.result != 'success' }}
         run: |
