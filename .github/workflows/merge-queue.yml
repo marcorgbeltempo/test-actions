@@ -1,6 +1,8 @@
 name: Merge Queue Workflow
 
 on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled]
   merge_group:
     types: [checks_requested]
 
@@ -11,7 +13,7 @@ jobs:
       - name: Echo testing
         run: echo "testing"
 
-  job2:
+  build:
     needs: [job1]
     strategy:
       matrix:
@@ -22,14 +24,19 @@ jobs:
 
   aggregate:
     runs-on: ubuntu-latest
-    needs: [job2]
+    needs: [build]
     steps:
       - run: exit 0
 
-  job3:
-    needs: [job2, aggregate]
-    if: ${{ !cancelled() }}
+  results:
     runs-on: ubuntu-latest
+    needs: [build, aggregate]
+    if: ${{ !cancelled() }}
     steps:
-      - name: Final job
-        run: echo "All matrix jobs completed successfully"
+      - if: ${{ needs.build.result != 'skipped' && needs.aggregate.result != 'success' }}
+        run: |
+          echo "One of the jobs failed"
+          exit 1
+      - run: |
+          echo "All jobs completed successfully"
+          exit 0
