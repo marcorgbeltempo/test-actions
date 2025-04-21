@@ -7,32 +7,131 @@ on:
     types: [checks_requested]
 
 jobs:
-  job1:
+  setup:
+    name: Setup
     runs-on: ubuntu-latest
     steps:
-      - name: Echo testing
-        run: echo "testing"
+      - run: echo "Setup"
+
+  determine-e2e-platforms:
+    name: E2E Determine Platforms
+    needs: [setup]
+    runs-on: ubuntu-latest
+    outputs:
+      platforms: ${{ steps.check.outputs.platforms }}
+    permissions:
+      pull-requests: read # For PR label information
+      contents: read # For checkout and repo access
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check platforms
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          echo 'platforms=[]' >> "$GITHUB_OUTPUT"
+          PLATFORMS="[]"
+
+          if [[ "${{ github.event_name }}" == "merge_group" ]] || \
+              ([[ "${{ github.ref }}" == "refs/heads/develop" ]] && \
+              ([[ "${{ github.event_name }}" == "schedule" ]] || \
+              [[ "${{ github.event_name }}" == "push" ]])); then
+            echo "Running tests on:"
+            # TODO: [ENG-25585] - CI Android Emulator unable to connect to network inside the runner
+            echo 'platforms=["ios", "web"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Get PR number for both push and PR events
+          PR_NUMBER=""
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            PR_NUMBER=$(gh pr list --head "${{ github.ref_name }}" --json number --jq '.[0].number')
+          fi
+
+          # Only proceed if we have a PR number
+          if [[ -n "$PR_NUMBER" ]]; then
+            PLATFORMS_ARR=()
+
+            # Handle label events
+            if [[ "${{ github.event_name }}" == "pull_request" ]] && [[ "${{ github.event.action }}" == "labeled" ]]; then
+              LABEL="${{ github.event.label.name }}"
+              echo "Processing newly added label: $LABEL"
+              
+              case "$LABEL" in
+                "e2e-web")
+                  PLATFORMS_ARR+=("web")
+                  ;;
+                "e2e-ios")
+                  PLATFORMS_ARR+=("ios")
+                  ;;
+                "e2e-android")
+                  # TODO: [ENG-25585] - CI Android Emulator unable to connect to network inside the runner
+                  # PLATFORMS_ARR+=("android")
+                  ;;
+              esac
+            else
+              # Handle other events by checking all current labels
+              LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
+              echo "PR #$PR_NUMBER labels: $LABELS"
+
+              if echo "$LABELS" | grep -q "e2e-web"; then
+                PLATFORMS_ARR+=("web")
+              fi
+              if echo "$LABELS" | grep -q "e2e-ios"; then
+                PLATFORMS_ARR+=("ios")
+              fi
+              if echo "$LABELS" | grep -q "e2e-android"; then
+                # TODO: [ENG-25585] - CI Android Emulator unable to connect to network inside the runner
+                PLATFORMS_ARR+=("android")
+              fi
+            fi
+            
+            # Convert array to JSON format if we have platforms
+            if [ ${#PLATFORMS_ARR[@]} -gt 0 ]; then
+              PLATFORMS=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${PLATFORMS_ARR[@]}")
+              echo "platforms=$PLATFORMS" >> "$GITHUB_OUTPUT"
+            fi
+          fi
 
   build:
-    needs: [job1]
+    name: Build E2E Test
+    runs-on: ubuntu-latest
+    needs: [determine-e2e-platforms]
+    if: ${{ needs.determine-e2e-platforms.outputs.platforms != '[]' }}
     strategy:
       matrix:
-        platform: [ios, web]
-    uses: ./.github/workflows/matrix-workflow.yml
-    with:
-      platform: ${{ matrix.platform }}
+        platform: ${{ fromJson(needs.determine-e2e-platforms.outputs.platforms) }}
+    steps:
+      - name: Run matrix job
+        run: |
+          echo "Running matrix for ${{ matrix.platform }}"
+          if [ "${{ matrix.platform }}" = "ios" ]; then
+            exit 1
+          fi
 
   aggregate:
+    name: Aggregate E2E Results
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [determine-e2e-platforms, build]
+    if: ${{github.event_name == 'merge_group' && needs.determine-e2e-platforms.outputs.platforms != '[]' }}
     steps:
       - run: exit 0
 
   results:
+    name: E2E Merge Group Results
     runs-on: ubuntu-latest
-    needs: [build, aggregate]
-    if: ${{ !cancelled() }}
+    needs: [determine-e2e-platforms, build, aggregate]
+    if: ${{ !cancelled() && github.event_name == 'merge_group' && needs.determine-e2e-platforms.outputs.platforms != '[]' }}
     steps:
+      - run: |
+          echo "Result"
+          echo "Build: ${{ needs.build.result }}"
+          echo "Build: ${{ fromJson(needs.build.outputs) }}"
+          echo "Aggregate: ${{ needs.aggregate.result }}"
+          
       - if: ${{ needs.build.result != 'skipped' && needs.aggregate.result != 'success' }}
         run: |
           echo "One of the jobs failed"

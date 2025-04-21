@@ -12,4 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run matrix job
-        run: echo "matrix for ${{ inputs.platform }}" 
+        run: |
+          if [ "${{ inputs.platform }}" = "ios" ]; then
+            echo "matrix for ${{ inputs.platform }}"
+          else
+            echo "matrix for ${{ inputs.platform }}"
+            exit 1
+          fi
