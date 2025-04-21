@@ -106,14 +106,15 @@ jobs:
 
   aggregate:
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [determine-e2e-platforms, build]
+    if: ${{ needs.determine-e2e-platforms.outputs.platforms != '[]' }}
     steps:
       - run: exit 0
 
   results:
     runs-on: ubuntu-latest
-    needs: [build, aggregate]
-    if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+    needs: [determine-e2e-platforms, build, aggregate]
+    if: ${{ !cancelled() && needs.determine-e2e-platforms.outputs.platforms != '[]' }}
     steps:
       - if: ${{ needs.build.result != 'skipped' && needs.aggregate.result != 'success' }}
         run: |
