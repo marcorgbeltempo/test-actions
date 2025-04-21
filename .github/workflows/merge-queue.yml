@@ -127,7 +127,7 @@ jobs:
     if: ${{ !cancelled() && github.event_name == 'merge_group' && needs.determine-e2e-platforms.outputs.platforms != '[]' }}
     steps:
       - run: |
-          echo "Results"
+          echo "Result"
           echo "Build: ${{ needs.build.result }}"
           echo "Build: ${{ needs.build.outputs }}"
           echo "Aggregate: ${{ needs.aggregate.result }}"
