@@ -7,8 +7,15 @@ on:
     types: [checks_requested]
 
 jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Setup"
+
   determine-e2e-platforms:
     name: E2E Determine Platforms
+    needs: [setup]
     runs-on: ubuntu-latest
     outputs:
       platforms: ${{ steps.check.outputs.platforms }}
